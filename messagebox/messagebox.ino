@@ -5,102 +5,83 @@
 DigoleSerialDisp screen(&Serial, 115200); //UART:Arduino UNO: Pin 1(TX)on arduino to RX on module
 
 #include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <AutoConnect.h>
 
 #include "FS.h"
 
+#define LED D1
+#define LID D2
+
 ESP8266WebServer Server;
-WiFiClient client;
+HTTPClient client;
 AutoConnect Portal(Server);
 String key;
 String user;
 String code;
+String message = "";
+int httpInterval = 0;
+boolean state = true;
 
-String host = "192.168.0.21";
-int port = 3000;
+String host = "messagebox.unitfi.com";
+int port = 80;
 
-void rootPage() {
-  char content[] = "Hello world!";
-  Server.send(200, "text/plain", content);
+const char * headerKeys[] = {"user", "code", "reset"};
+const size_t numberOfHeaders = 3;
+
+void resetBox() {
+  SPIFFS.remove("/key.txt");
+  SPIFFS.remove("/user.txt");
+  ESP.restart();
 }
 
-int activated(String input){
-  String line = "";
-  String target = "user:";
-  int i = 0;
-  // Clear first line
-  while(i < input.length()){
-    if(input.charAt(i) == '\n'){
-      i++;
-      break;
-    }
-    i++;
-  }
-  while(i < input.length()){
-    if(input.charAt(i) == '\n'){
-      line = "";
-      i++;
-    }
-    line += input.charAt(i);
-    if(line == target){
-      screen.clearScreen();
-      screen.print("Activated!");
-      return 100;
-    }
-    i++;
-  }
-  return 0;
+void ICACHE_RAM_ATTR showMessage();
+void ICACHE_RAM_ATTR clearMessage();
+
+void newMessage(){
+  digitalWrite(LED, HIGH);
+  //TODO: Start glowing LED
+  screen.clearScreen();
+  screen.setFont(10);
+  screen.print(message);
 }
 
-String activationCode(String input){
-  String line = "";
-  String target = "code:";
-  String output = "";
-  int i = 0;
-  // Clear first line
-  while(i < input.length()){
-    if(input.charAt(i) == '\n'){
-      i++;
-      break;
-    }
-    i++;
-  }
-  while(i < input.length()){
-    if(input.charAt(i) == '\n'){
-      line = "";
-      i++;
-    }
-    line += input.charAt(i);
-    if(line == target){
-      i++;
-      while(input.charAt(i) != '\n' && input.charAt(i) != '\r'){
-        output += input.charAt(i);
-        i++;
-      }
-      return output;
-    }
-    i++;
-  }
-}
 
 void setup(void)
 {
+  //Initialize the LED and the box lid
+  pinMode(LED, OUTPUT);
+  analogWrite(LED, 128);
+  pinMode(LID, INPUT_PULLUP);
+
+  //Intitialize the lcd screen
+  delay(100);
   screen.begin();
+  screen.screenOnOff(0);
+  delay(100);
+  screen.screenOnOff(1);
+  delay(100);
+  screen.backLightOn();
+  screen.setRotation(2);
   screen.clearScreen();
   screen.setColor(255);
-  screen.setFont(6);
-  screen.clearScreen();
-  screen.print("Hello World!");
   screen.write('F');  //disable auto refresh screen
   screen.write('S');
   screen.write('1');
+  screen.setFont(10);
+  screen.print("\n\n\n\n\n\n");
+  screen.print(center("MessageBox"));
+  delay(2000);
 
-  
-  Server.on("/", rootPage);
+  // Start the wifi autoconnect service
   Portal.begin();
 
+  // Open the file system to get saved keys and user ids
   SPIFFS.begin();
+
+  // Check if a generated key exists. If it does not exist,
+  // Create a new one (randomly generated 32-byte key)
   if (SPIFFS.exists("/key.txt"))
   {
     File keyFile = SPIFFS.open("/key.txt", "r");
@@ -121,93 +102,120 @@ void setup(void)
   if (SPIFFS.exists("/user.txt"))
   {
     File userFile = SPIFFS.open("/user.txt", "r");
-    user = userFile.read();
+    user = userFile.readString();
   }
   else
   {
     user = "";
   }
+
+  //attachInterrupt(digitalPinToInterrupt(LID), showMessage, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(LID), clearMessage, RISING);
 }
 
+
+
+
+void drawHeart(int x, int y){
+  screen.drawCircle(x, y, 28, 1);
+}
+
+
 void loop(void)
-{
-  if(WiFi.status() != WL_CONNECTED)
-  {
+{ 
+  if(digitalRead(LID) == HIGH){
+    if(message != ""){
+      screen.clearScreen();
+      screen.setFont(10);
+      screen.setColor(255);
+      screen.print(message);
+      digitalWrite(LED, LOW);
+      message = "";
+    } else if(!state) {
+      screen.clearScreen();
+      screen.setTrueColor(0,0,230);
+      drawHeart(56, 56);
+    }
+    state = true;
+    screen.backLightOn();
+  } else {
+    screen.backLightOff();
+    screen.clearScreen();
+    state = false;
+  }
+  
+  if(WiFi.status() != WL_CONNECTED){
     ///screen.clearScreen();
     //screen.print("Connect to MessageBox WiFi access point to set me up!");
     Portal.handleClient();
   } else {
-    if ( client.connect(host, port) )
-    {
-      if(user != "")
-      {
-        while(1)
-        {
-          // We have been authenticated and should check for new messages
-          client.print(String("GET /message/read?key=") + key +
-                "&user=" + user + " HTTP/1.1\r\n" +
-                "Host: " + host + "\r\n" +
-                "Connection: close\r\n" +
-                "\r\n"
-          );
-          String response = "";
-          while( client.connected() || client.available())
-          {
-            if(client.available())
-            {
-              response += client.readString();
-            }
-          }
-          //TODO: Process input from http response for message
-
+    if(httpInterval >= 20){
+      if(message != ""){
+        //We have a message waiting to be read. Do nothing.
+        //delay(10000);
+      } else if(user != "") {
+        // Begin asking the server if we have any new messages
+        //screen.backLightOff();
+        
+        client.begin(String("http://messagebox.unitfi.com/message/read") +
+                      "?key=" + key +
+                      "&user=" + user);
+        client.collectHeaders(headerKeys, numberOfHeaders);
+        int httpCode = client.GET();       
+  
+        message = client.getString();
+        if(message == "No Messages"){
+          //screen.clearScreen();
+          //screen.setFont(10);
+          //screen.print(".");
+          message = "";
+        } else if(message == "No box"){
+          resetBox();
+        } else {
+          newMessage();
           
-          screen.clearScreen();
-          screen.print(response);
-          
-          delay(10000);
         }
+        
+        //screen.clearScreen();
+        //screen.print(client.getString());
+  
+        client.end();
+  
+        httpInterval = 0;
       }
       else
       {
-          // We haven't authenticated yet, send credentials to server until
-          // we get a user id
-          client.print(String("GET /box/activate?key=") + key +
-                " HTTP/1.1\r\n" +
-                "Host: " + host + "\r\n" +
-                "Connection: close\r\n" +
-                "\r\n"
-          );
-          String response = "Response: ";
-          while( client.connected() || client.available())
-          {
-            if(client.available())
-            {
-              response += client.readString();
-            }
-          }
-          client.stop();
-
-          if(activated(response) > 0){
-            screen.clearScreen();
-            screen.print("Activated!");
-            //TODO: Handle activation
-          } else {
-            code = activationCode(response);
-            screen.clearScreen();
-            screen.print("Activation code: " + code);
-          }
-
-          //screen.clearScreen();
-          //screen.print(response);
-          
-          delay(10000);
+        // We haven't authenticated yet, send credentials to server until
+        // we get a user id
+        client.begin(String("http://messagebox.unitfi.com/box/activate") +
+                      "?key=" + key);
+  
+        client.collectHeaders(headerKeys, numberOfHeaders);
+        int httpCode = client.GET();  
+  
+        // Check activation headers:
+        // If "code", display the activation code
+        // If "user", we've been acivated and assigned to a user,
+        //    so save that information.
+        if(client.hasHeader("code")){
+          screen.clearScreen();
+          screen.print("Activation code: \r\n" + client.header("code")); 
+        } else if(client.hasHeader("user")){
+          user = client.header("user");
+          screen.clearScreen();
+          screen.setFont(10);
+          screen.print("Activated! :D\r\nUser: " + user);
+        } else if(client.hasHeader("reset")){
+          resetBox();
+        }
+  
+        client.end();
+        
+        httpInterval = 0;
       }
     }
-    else
-    {
-      screen.clearScreen();
-      screen.print("Unable to connect to host: " + host + ":" + port);
-    }
+    httpInterval++;
+    
   }
-  delay(1000);
+  delay(50);
 }
