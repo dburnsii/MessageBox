@@ -7,7 +7,7 @@
 #include <SPI.h>
 
 #define TFT_CS         D8
-#define TFT_RST        D4                                            
+#define TFT_RST        D4
 #define TFT_DC         D3
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
@@ -18,30 +18,36 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 #include <ESP8266HTTPClient.h>
 #include <ESP8266WebServer.h>
 #include <AutoConnect.h>
-
-
-
-#include "FS.h"
+#include <FS.h>
 
 #define LED D1
 #define LID D0
 #define BACKLIGHT D2
 
+#define HEIGHT 128
+#define WIDTH 160
+
+#define DEBUG 1
+
 ESP8266WebServer Server;
 HTTPClient client;
 AutoConnect Portal(Server);
+//Adafruit_FlashTransport_SPI flashTransport(SS, &SPI);
 String key;
 String user;
 String code;
 String message = "";
 int httpInterval = 0;
 boolean state = true;
-
-String host = "messagebox.unitfi.com";
+boolean serverAvailable = true;
+uint8_t buffer[5840];
+//String host = "messagebox.unitfi.com";
+String host = "192.168.0.10:3000";
 int port = 80;
+String imageName = "/message.tft";
 
-const char * headerKeys[] = {"user", "code", "reset"};
-const size_t numberOfHeaders = 3;
+const char * headerKeys[] = {"user", "code", "Content-Type", "status"};
+const size_t numberOfHeaders = 4;
 
 void resetBox() {
   SPIFFS.remove("/key.txt");
@@ -49,11 +55,12 @@ void resetBox() {
   ESP.restart();
 }
 
-void ICACHE_RAM_ATTR showMessage();
-void ICACHE_RAM_ATTR clearMessage();
-
 void setup(void)
 {
+  if(DEBUG){
+    Serial.begin(9600);
+    Serial.println("Starting messagebox");
+  }
   //Initialize the LED and the box lid
   pinMode(LED, OUTPUT);
   analogWrite(LED, 128);
@@ -108,31 +115,76 @@ void setup(void)
   }
 }
 
-
-/*void newMessage(){
-  digitalWrite(LED, HIGH);
-  //TODO: Start glowing LED
-  screen.clearScreen();
-  screen.setFont(10);
-  screen.print(message);
-}*/
-
-
 void drawHeart(int x, int y){
   tft.fillCircle(x+4, y+4, 4, 0xB882);
   tft.fillCircle(x+12, y+4, 4, 0xB882);
   tft.fillTriangle(x, y+4, x+16, y+4, x+8, y+16, 0xB882);
 }
 
+void downloadMessage(){
+  if(DEBUG){Serial.println("Downloading message.");}
+  if(SPIFFS.exists(imageName)){
+    SPIFFS.remove(imageName);
+  }
+  File image = SPIFFS.open(imageName, "w");
+  if(!image){
+    //Image open failed!
+    return;
+  }
+  int len = client.getSize();
+  if(DEBUG){Serial.print("Download size: "); Serial.println(client.getSize());}
+  WiFiClient* stream = client.getStreamPtr();
+  while(client.connected() && (len > 0 || len == -1)){
+    size_t size = stream->available();
+    if(size){
+      int c = stream->readBytes(buffer, ((size > sizeof(buffer)) ? sizeof(buffer) : size));
+      image.write(buffer, c);
+      if(len > 0){
+        len -= c;
+      }
+    }
+    delay(1);
+  }
+  image.close();
+  if(DEBUG){Serial.println("Download complete.");}
+}
+
+void displayMessage(){
+  File messageFile = SPIFFS.open(imageName, "r");
+  if(DEBUG){Serial.print("File size: "); Serial.println(messageFile.size());}
+  uint16_t pixel;
+  for(int i = 0; i < HEIGHT; i++){
+    for(int j = 0; j < WIDTH; j++){
+      pixel = messageFile.read();
+      pixel += messageFile.read() << 8;
+      if(DEBUG && i < 5 && j < 5){
+        Serial.println(pixel);
+      }
+      tft.drawPixel(j, i, pixel);
+    }
+  }
+}
 
 void loop(void)
-{ 
+{
   if(digitalRead(LID) == HIGH){
-    if(message != ""){
+    if(!state && WiFi.status() != WL_CONNECTED){
       tft.fillScreen(ST77XX_BLACK);
-      tft.print(message);
+      tft.setCursor(0,0);
+      tft.println("Connect to esp8266 WiFi network to set me up!");
+    } else if(SPIFFS.exists(imageName)){
+      displayMessage();
+      SPIFFS.remove(imageName);
       digitalWrite(LED, LOW);
-      message = "";
+    } else if(!state && user == "" && code != "") {
+      tft.fillScreen(ST77XX_BLACK);
+      tft.setCursor(0,0);
+      tft.println("Activate Me!");
+      tft.println(code);
+    } else if(!state && !serverAvailable){
+      tft.fillScreen(ST77XX_BLACK);
+      tft.setCursor(0,0);
+      tft.println("Can't connect to server!");
     } else if(!state) {
       tft.fillScreen(ST77XX_BLACK);
       drawHeart((160 / 2) - 8, (128/2) - 8);
@@ -144,58 +196,70 @@ void loop(void)
     tft.fillScreen(ST77XX_BLACK);
     state = false;
   }
-  
+
   if(WiFi.status() != WL_CONNECTED){
-    ///screen.clearScreen();
-    //screen.print("Connect to MessageBox WiFi access point to set me up!");
     Portal.handleClient();
   } else {
     if(httpInterval >= 20){
-      if(message != ""){
+      if(SPIFFS.exists(imageName)){
         //We have a message waiting to be read. Do nothing.
         //delay(10000);
       } else if(user != "") {
         // Begin asking the server if we have any new messages
-       
-        client.begin(String("http://messagebox.unitfi.com/message/read") +
+        client.begin(String("http://" + host + "/message/read") +
                       "?key=" + key +
                       "&user=" + user);
         client.collectHeaders(headerKeys, numberOfHeaders);
-        int httpCode = client.GET();       
-  
-        message = client.getString();
-        if(message == "No Messages"){
-          message = "";
-        } else if(message == "No box"){
-          resetBox();
+        int httpCode = client.GET();
+
+        if(httpCode >= 200 && httpCode <= 299){
+          serverAvailable = true;
         } else {
-          digitalWrite(LED, HIGH);
+          serverAvailable = false;
         }
-        
-        //screen.clearScreen();
-        //screen.print(client.getString());
-  
+
+        //message = client.getString();
+        if(client.hasHeader("status")){
+          String status = client.header("status");
+          if(status == "No Messages"){
+            //No message, do nothing.
+          } else if(status == "New Message" && client.header("Content-Type") == "application/octet-stream"){
+            downloadMessage();
+          } else if(status == "No Box"){
+            resetBox();
+          } else if(status == "Update"){
+            //Update system
+          }
+        }
+
         client.end();
-  
+
         httpInterval = 0;
       }
       else
       {
         // We haven't authenticated yet, send credentials to server until
         // we get a user id
-        client.begin(String("http://messagebox.unitfi.com/box/activate") +
+        client.begin(String("http://" + host + "/box/activate") +
                       "?key=" + key);
-  
+
         client.collectHeaders(headerKeys, numberOfHeaders);
-        int httpCode = client.GET();  
-  
+        int httpCode = client.GET();
+
+         if(httpCode >= 200 && httpCode <= 299){
+          serverAvailable = true;
+        } else {
+          serverAvailable = false;
+        }
+
         // Check activation headers:
         // If "code", display the activation code
         // If "user", we've been acivated and assigned to a user,
         //    so save that information.
         if(client.hasHeader("code")){
           tft.fillScreen(ST77XX_BLACK);
-          tft.print("Activation code: \n" + client.header("code")); 
+          tft.setCursor(0,0);
+          tft.print("Activation code: \n" + client.header("code"));
         } else if(client.hasHeader("user")){
           user = client.header("user");
           tft.fillScreen(ST77XX_BLACK);
@@ -203,14 +267,14 @@ void loop(void)
         } else if(client.hasHeader("reset")){
           resetBox();
         }
-  
+
         client.end();
-        
+
         httpInterval = 0;
       }
     }
     httpInterval++;
-    
+
   }
   delay(50);
 }
