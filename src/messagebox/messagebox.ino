@@ -3,7 +3,6 @@
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
-//#include <Fonts/FreeMono9pt7b.h>
 #include <SPI.h>
 
 #define TFT_CS         D8
@@ -24,6 +23,8 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 #define LID D0
 #define BACKLIGHT D2
 
+#define AUTOCONNECT_URI         "/_ac/config"
+
 #define HEIGHT 128
 #define WIDTH 160
 
@@ -32,7 +33,7 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 ESP8266WebServer Server;
 HTTPClient client;
 AutoConnect Portal(Server);
-//Adafruit_FlashTransport_SPI flashTransport(SS, &SPI);
+AutoConnectConfig PortalConfig;
 String key;
 String user;
 String code;
@@ -40,9 +41,9 @@ String message = "";
 int httpInterval = 0;
 boolean state = true;
 boolean serverAvailable = true;
+boolean wifiConnected = false;
 uint8_t buffer[5840];
-//String host = "messagebox.unitfi.com";
-String host = "192.168.0.10:3000";
+String host = "messagebox.unitfi.com";
 int port = 80;
 String imageName = "/message.tft";
 
@@ -53,6 +54,44 @@ void resetBox() {
   SPIFFS.remove("/key.txt");
   SPIFFS.remove("/user.txt");
   ESP.restart();
+}
+
+void displayWiFiLogin(){
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setCursor(0, 50);
+  tft.println("   Connect your phone to");
+  tft.println("   the 'Messagebox' WiFi");
+  tft.println("   network to set me up!");
+}
+
+void displayConnecting(){
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setCursor(0, 50);
+  tft.println("Connecting to WiFi");
+}
+
+
+void displayWiFiConnected(){
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setCursor(10,60);
+  tft.println("WiFi Network Connected!");
+}
+
+void displayActivationCode(){
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setCursor(0,40);
+  tft.println("       Activate me @");
+  tft.println(host + "/register");
+  tft.println("    in your browser.");
+  tft.println("");
+  tft.println("      Activation Code:");
+  tft.println("         " + code);
+}
+
+void displayNoServer(){
+  tft.fillScreen(ST77XX_BLACK);
+  tft.setCursor(10,80);
+  tft.println("Can't contact MessageBox :(");
 }
 
 void setup(void)
@@ -72,15 +111,24 @@ void setup(void)
   tft.setRotation(1);
   tft.fillScreen(ST77XX_BLACK);
   tft.setTextColor(0xFFFF);
-  //tft.setTextSize(1);
-  //tft.setFont(&FreeMono9pt7b);
   tft.setCursor(50, 60);
   tft.print("MessageBox");
   digitalWrite(BACKLIGHT, HIGH);
-  delay(2000);
+  delay(3000);
+
+  displayConnecting();
 
   // Start the wifi autoconnect service
+  PortalConfig.apid = "Messagebox";
+  PortalConfig.bootUri = AC_ONBOOTURI_HOME;
+  PortalConfig.homeUri = "/_ac/config";
+  PortalConfig.psk = "";
+  PortalConfig.portalTimeout = 1;
+  PortalConfig.retainPortal = true;
+  Portal.config(PortalConfig);
   Portal.begin();
+
+  Serial.println("Portal initialized");
 
   // Open the file system to get saved keys and user ids
   SPIFFS.begin();
@@ -114,6 +162,8 @@ void setup(void)
     user = "";
   }
 }
+
+
 
 void drawHeart(int x, int y){
   tft.fillCircle(x+4, y+4, 4, 0xB882);
@@ -167,24 +217,23 @@ void displayMessage(){
 
 void loop(void)
 {
-  if(digitalRead(LID) == HIGH){
+  if(digitalRead(LID) == LOW){
     if(!state && WiFi.status() != WL_CONNECTED){
-      tft.fillScreen(ST77XX_BLACK);
-      tft.setCursor(0,0);
-      tft.println("Connect to esp8266 WiFi network to set me up!");
-    } else if(SPIFFS.exists(imageName)){
+      displayWiFiLogin();
+    } else if(!state && WiFi.status() == WL_CONNECTED && !wifiConnected) {
+      wifiConnected = true;
+      WiFi.softAPdisconnect(true);
+      displayWiFiConnected();
+      delay(3000);
+      state = false;
+    } else if(!state && SPIFFS.exists(imageName)){
       displayMessage();
       SPIFFS.remove(imageName);
       digitalWrite(LED, LOW);
     } else if(!state && user == "" && code != "") {
-      tft.fillScreen(ST77XX_BLACK);
-      tft.setCursor(0,0);
-      tft.println("Activate Me!");
-      tft.println(code);
+      displayActivationCode();
     } else if(!state && !serverAvailable){
-      tft.fillScreen(ST77XX_BLACK);
-      tft.setCursor(0,0);
-      tft.println("Can't connect to server!");
+      displayNoServer();
     } else if(!state) {
       tft.fillScreen(ST77XX_BLACK);
       drawHeart((160 / 2) - 8, (128/2) - 8);
@@ -200,6 +249,7 @@ void loop(void)
   if(WiFi.status() != WL_CONNECTED){
     Portal.handleClient();
   } else {
+    if(!wifiConnected){state = false;}
     if(httpInterval >= 20){
       if(SPIFFS.exists(imageName)){
         //We have a message waiting to be read. Do nothing.
@@ -218,7 +268,6 @@ void loop(void)
           serverAvailable = false;
         }
 
-        //message = client.getString();
         if(client.hasHeader("status")){
           String status = client.header("status");
           if(status == "No Messages"){
@@ -256,14 +305,12 @@ void loop(void)
         // If "code", display the activation code
         // If "user", we've been acivated and assigned to a user,
         //    so save that information.
-        if(client.hasHeader("code")){
-          tft.fillScreen(ST77XX_BLACK);
-          tft.setCursor(0,0);
-          tft.print("Activation code: \n" + client.header("code"));
+        if(client.hasHeader("code") && code == ""){
+          code = client.header("code");
+          state = false;
         } else if(client.hasHeader("user")){
           user = client.header("user");
-          tft.fillScreen(ST77XX_BLACK);
-          tft.print("Activated! :D\n\nUser: " + user);
+          state = false;
         } else if(client.hasHeader("reset")){
           resetBox();
         }
