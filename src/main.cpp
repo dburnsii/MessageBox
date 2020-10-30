@@ -249,10 +249,11 @@ void loop(void)
     }
   }
 
-  if(httpCheck >= 100){
+  if(httpCheck >= 1000){
+    httpCheck = 0;
     if(SPIFFS.exists(imageName)){
       //We have a message waiting to be read. Do nothing.
-      httpCheck = 0;
+      //httpCheck = 0;
     } else if(user != "") {
       // Begin asking the server if we have any new messages
       client.begin(*bearSSL, String("https://" + host + "/message/read") +

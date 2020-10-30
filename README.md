@@ -61,8 +61,8 @@
 
 [![Product Name Screen Shot][product-screenshot]](https://messagebox.unitfi.com)
 
-This project serves as the client application for the MessageBox project. MessageBox allows you to easily 
-send messages to friends or loved ones with a simple and easy to use interface. The messages are 
+This project serves as the client application for the MessageBox project. MessageBox allows you to easily
+send messages to friends or loved ones with a simple and easy to use interface. The messages are
 sent to the MessageBox hardware, and the user on the other end is notified of the new message. After
 opening the box and reading the message, the box clears it's screen and listens for more messages.
 This provides a clean interface to send personal messages to someone at work or home, without distracting
@@ -76,61 +76,35 @@ the recipient or requiring them to use any complex technology.
 <!-- GETTING STARTED -->
 ## Getting Started
 
-To get a local copy up and running follow these simple steps.
+To get a MessageBox up and running follow these simple steps.
 
 ### Prerequisites
 
 You'll need the following:
-* Ruby > 2.5
-* PostgreSQL
-* Node.js
-* Yarn
-
-* Ubuntu
-```sh
-sudo apt install ruby postgresql node yarn
-```
-
-* Arch
-```sh
-sudo pacman -S ruby postgresql node yarn
-```
+* PlatformIO
 
 ### Installation
 
-1. Clone the repo
+1. To run the project, build and upload with PlatformIO:
 ```sh
-git clone https://github.com/dburnsii/MessageboxServer.git
-```
-2. Install Rails
-```sh
-gem install bundle
+pio run
+pio run -t uploadfs
+pio run -t upload
 ```
 
-3. Install dependencies
-```sh
-bundle install
-```
-
-4. Setup database
-```sh
-rails db:setup
-```
+The uploadfs command will ensure all necessary SSL certificates are installed on the system, for use with HTTPS.
 
 
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-To run the project, run the rails server:
-```sh
-rails s
-```
+Setup instructions will appear on the TFT LCD attached to the box.
 
 
 <!-- ROADMAP -->
 ## Roadmap
 
-See the [open issues](https://github.com/dburnsii/MessageboxServer/issues) for a list of proposed features (and known issues).
+See the [open issues](https://github.com/dburnsii/MessageBox/issues) for a list of proposed features (and known issues).
 
 
 
@@ -157,7 +131,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 Desone Burns II - dburnsii@live.com
 
-Project Link: [https://github.com/dburnsii/MessageboxServer](https://github.com/dburnsii/MessageboxServer)
+Project Link: [https://github.com/dburnsii/MessageBox](https://github.com/dburnsii/MessageBox)
 
 
 <!-- ACKNOWLEDGEMENTS
@@ -173,15 +147,14 @@ Project Link: [https://github.com/dburnsii/MessageboxServer](https://github.com/
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/dburnsii/MessageboxServer.svg?style=flat-square
-[contributors-url]: https://github.com/dburnsii/MessageboxServer/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/dburnsii/MessageboxServer.svg?style=flat-square
-[forks-url]: https://github.com/dburnsii/MessageboxServer/network/members
-[stars-shield]: https://img.shields.io/github/stars/dburnsii/MessageboxServer.svg?style=flat-square
-[stars-url]: https://github.com/dburnsii/MessageboxServer/stargazers
-[issues-shield]: https://img.shields.io/github/issues/dburnsii/MessageboxServer.svg?style=flat-square
-[issues-url]: https://github.com/dburnsii/MessageboxServer/issues
-[license-shield]: https://img.shields.io/github/license/dburnsii/MessageboxServer.svg?style=flat-square
-[license-url]: https://github.com/dburnsii/MessageboxServer/blob/master/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/dburnsii/MessageBox.svg?style=flat-square
+[contributors-url]: https://github.com/dburnsii/MessageBox/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/dburnsii/MessageBox.svg?style=flat-square
+[forks-url]: https://github.com/dburnsii/MessageBox/network/members
+[stars-shield]: https://img.shields.io/github/stars/dburnsii/MessageBox.svg?style=flat-square
+[stars-url]: https://github.com/dburnsii/MessageBox/stargazers
+[issues-shield]: https://img.shields.io/github/issues/dburnsii/MessageBox.svg?style=flat-square
+[issues-url]: https://github.com/dburnsii/MessageBox/issues
+[license-shield]: https://img.shields.io/github/license/dburnsii/MessageBox.svg?style=flat-square
+[license-url]: https://github.com/dburnsii/MessageBox/blob/master/LICENSE
 [product-screenshot]: public/images/screenshot.png
-
