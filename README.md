@@ -76,19 +76,19 @@ the recipient or requiring them to use any complex technology.
 <!-- GETTING STARTED -->
 ## Getting Started
 
-To get a MessageBox up and running follow these simple steps.
+To get a MessageBox up and running follow these steps.
 
 ### Prerequisites
 
 #### Hardware
 
 You'll need the following:
-* 3D Printed Parts in the CAD_Files/FreeCAD folder
-* PCB in the CAD_Files/KiCad folder
-* Off-the-shelf parts listed in BOM.md
+* 3D Printed Parts in the `CAD_Files/FreeCAD` folder
+* PCB in the `CAD_Files/KiCad` folder
+* Off-the-shelf parts listed in `BOM.md`
 * Soldering Iron and Solder
-* *Optional* Heatshrink Tubing
-* *Optional* Hot Glue Gun
+* (*Optional*)  Heatshrink Tubing
+* (*Optional*)  Hot Glue Gun
 
 #### Software
 
