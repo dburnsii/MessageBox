@@ -70,7 +70,7 @@ the recipient or requiring them to use any complex technology.
 
 ### Built With
 
-* [Rails 6](https://github.com/rails/rails)
+* [PlatformIO](https://platformio.org/)
 
 
 <!-- GETTING STARTED -->
@@ -79,6 +79,18 @@ the recipient or requiring them to use any complex technology.
 To get a MessageBox up and running follow these simple steps.
 
 ### Prerequisites
+
+#### Hardware
+
+You'll need the following:
+* 3D Printed Parts in the CAD_Files/FreeCAD folder
+* PCB in the CAD_Files/KiCad folder
+* Off-the-shelf parts listed in BOM.md
+* Soldering Iron and Solder
+* *Optional* Heatshrink Tubing
+* *Optional* Hot Glue Gun
+
+#### Software
 
 You'll need the following:
 * PlatformIO
