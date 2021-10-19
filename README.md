@@ -59,7 +59,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]](https://messagebox.unitfi.com)
+[![Prototype](/images/Box_Prototype.jpg)](https://messagebox.unitfi.com)
 
 This project serves as the client application for the MessageBox project. MessageBox allows you to easily
 send messages to friends or loved ones with a simple and easy to use interface. The messages are
