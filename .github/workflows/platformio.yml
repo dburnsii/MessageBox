@@ -33,4 +33,4 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: firmware.bin
-        path: .pio/build/d1_mini/
+        path: .pio/build/d1_mini/firmware.bin
