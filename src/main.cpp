@@ -1,13 +1,13 @@
-#include "Arduino.h"
-
 #include <SD.h>
+#include <Ticker.h>
+#include <Wire.h>
+#include <FS.h>
+
+#include <SPI.h>
+
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
 #include <Adafruit_NeoPixel.h> // LED Ring library
-#include <Ticker.h>
-#include <Wire.h>
-#include <SPI.h>
-
 
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
@@ -15,7 +15,6 @@
 #include <AutoConnect.h>
 #include <CertStoreBearSSL.h>
 #include <time.h>
-#include <FS.h>
 
 // LED Ring pin and count
 #define LED_PIN D1
