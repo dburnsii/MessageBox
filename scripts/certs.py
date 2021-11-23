@@ -87,4 +87,4 @@ def collect_certs(source, target, env):
     print("Collecting SSL Certs from Mozilla")
     import_certs()
 
-env.AddPreAction("${BUILD_DIR}/spiffs.bin", collect_certs)
+env.AddPreAction("${BUILD_DIR}/littlefs.bin", collect_certs)
